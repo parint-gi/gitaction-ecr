@@ -19,7 +19,7 @@ jobs:
         aws-region: us-east-2
 
     - name: Login to Amazon ECR
-      id: simplebank
+      id: login-ecr
       uses: aws-actions/amazon-ecr-login@v1
 
     - name: Build, tag, and push image to Amazon ECR
