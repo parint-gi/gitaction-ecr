@@ -1,21 +1,26 @@
-# Build stage
-FROM golang:1.16-alpine3.13 AS builder
+FROM mcr.microsoft.com/dotnet/aspnet:5.0-focal AS base
 WORKDIR /app
+EXPOSE 5000
+
+ENV ASPNETCORE_URLS=http://*:5000
+
+# Creates a non-root user with an explicit UID and adds permission to access the /app folder
+# For more info, please refer to https://aka.ms/vscode-docker-dotnet-configure-containers
+RUN adduser -u 5678 --disabled-password --gecos "" appuser && chown -R appuser /app
+USER appuser
+
+FROM mcr.microsoft.com/dotnet/sdk:5.0-focal AS build
+WORKDIR /src
+COPY ["giTestApi.csproj", "./"]
+RUN dotnet restore "giTestApi.csproj"
 COPY . .
-RUN go build -o main main.go
-RUN apk --no-cache add curl
-RUN curl -L https://github.com/golang-migrate/migrate/releases/download/v4.14.1/migrate.linux-amd64.tar.gz | tar xvz
+WORKDIR "/src/."
+RUN dotnet build "giTestApi.csproj" -c Release -o /app/build
 
-# Run stage
-FROM alpine:3.13
+FROM build AS publish
+RUN dotnet publish "giTestApi.csproj" -c Release -o /app/publish
+
+FROM base AS final
 WORKDIR /app
-COPY --from=builder /app/main .
-COPY --from=builder /app/migrate.linux-amd64 ./migrate
-COPY app.env .
-COPY start.sh .
-COPY wait-for.sh .
-COPY db/migration ./migration
-
-EXPOSE 8080
-CMD [ "/app/main" ]
-ENTRYPOINT [ "/app/start.sh" ]
+COPY --from=publish /app/publish .
+ENTRYPOINT ["dotnet", "giTestApi.dll"]
